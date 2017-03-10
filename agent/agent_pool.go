@@ -14,16 +14,16 @@ import (
 )
 
 type AgentPool struct {
-	APIClient          *api.Client
-	Token              string
-	ConfigFilePath     string
-	Name               string
-	Priority           string
-	MetaData           []string
-	MetaDataEC2        bool
-	MetaDataEC2Tags    bool
-	MetaDataGCP        bool
-	Endpoint           string
+	APIClient      *api.Client
+	Token          string
+	ConfigFilePath string
+	Name           string
+	Priority       string
+	Tags           []string
+	EC2            bool
+	EC2Tags        bool
+	GCPTags        bool
+	Endpoint       string
 	AgentConfiguration *AgentConfiguration
 }
 
@@ -46,7 +46,7 @@ func (r *AgentPool) Start() error {
 		logger.Fatal("%s", err)
 	}
 
-	logger.Info("Successfully registered agent \"%s\" with meta-data %s", registered.Name, registered.MetaData)
+	logger.Info("Successfully registered agent \"%s\" with tags %s", registered.Name, registered.Tags)
 
 	logger.Debug("Ping interval: %ds", registered.PingInterval)
 	logger.Debug("Job status interval: %ds", registered.JobStatusInterval)
@@ -97,7 +97,7 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 	agent := &api.Agent{
 		Name:              r.Name,
 		Priority:          r.Priority,
-		MetaData:          r.MetaData,
+		Tags:              r.Tags,
 		ScriptEvalEnabled: r.AgentConfiguration.CommandEval,
 		Version:           Version(),
 		Build:             BuildVersion(),
@@ -105,8 +105,8 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 		Arch:              runtime.GOARCH,
 	}
 
-	// Attempt to add the EC2 meta-data
-	if r.MetaDataEC2 {
+	// Attempt to add the EC2 tags
+	if r.EC2 {
 		logger.Info("Fetching EC2 meta-data...")
 
 		err := retry.Do(func(s *retry.Stats) error {
@@ -116,7 +116,7 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 			} else {
 				logger.Info("Successfully fetched EC2 meta-data")
 				for tag, value := range tags {
-					agent.MetaData = append(agent.MetaData, fmt.Sprintf("%s=%s", tag, value))
+					agent.Tags = append(agent.Tags, fmt.Sprintf("%s=%s", tag, value))
 				}
 				s.Break()
 			}
@@ -131,7 +131,7 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 	}
 
 	// Attempt to add the EC2 tags
-	if r.MetaDataEC2Tags {
+	if r.EC2Tags {
 		logger.Info("Fetching EC2 tags...")
 
 		// same as above
@@ -142,7 +142,7 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 			} else {
 				logger.Info("Successfully fetched EC2 tags")
 				for tag, value := range tags {
-					agent.MetaData = append(agent.MetaData, fmt.Sprintf("%s=%s", tag, value))
+					agent.Tags = append(agent.Tags, fmt.Sprintf("%s=%s", tag, value))
 				}
 				s.Break()
 			}
@@ -157,14 +157,14 @@ func (r *AgentPool) CreateAgentTemplate() *api.Agent {
 	}
 
 	// Attempt to add the Google Cloud meta-data
-	if r.MetaDataGCP {
+	if r.GCPTags {
 		tags, err := GCPMetaData{}.Get()
 		if err != nil {
 			// Don't blow up if we can't find them, just show a nasty error.
 			logger.Error(fmt.Sprintf("Failed to fetch Google Cloud meta-data: %s", err.Error()))
 		} else {
 			for tag, value := range tags {
-				agent.MetaData = append(agent.MetaData, fmt.Sprintf("%s=%s", tag, value))
+				agent.Tags = append(agent.Tags, fmt.Sprintf("%s=%s", tag, value))
 			}
 		}
 	}
